@@ -1,6 +1,8 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isCoachEmail } from "@/lib/coach-email";
 
 export type Profile = {
   id: string;
@@ -25,7 +27,14 @@ export async function requireProfile(opts: { allowNotOnboarded?: boolean } = {})
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single<Profile>();
+  let { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single<Profile>();
+
+  // L'adresse du coach est toujours coach : on corrige la base automatiquement si besoin
+  if (isCoachEmail(user.email) && (!profile || profile.role !== "coach" || !profile.onboarded)) {
+    const admin = createAdminClient();
+    await admin.from("profiles").upsert({ id: user.id, role: "coach", onboarded: true }, { onConflict: "id" });
+    ({ data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single<Profile>());
+  }
   if (!profile) redirect("/login");
   if (!profile.onboarded && !opts.allowNotOnboarded) redirect("/onboarding");
 

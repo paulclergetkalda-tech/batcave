@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendLoginCode } from "@/lib/supabase/mailer";
+import { isCoachEmail } from "@/lib/coach-email";
 
 export type FormState = { error?: string; ok?: string; step?: "code"; email?: string } | undefined;
 
@@ -29,6 +30,7 @@ export async function verifyCode(_prev: FormState, formData: FormData): Promise<
   const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
   if (error || !data.user) return { step: "code", email, error: "Code incorrect ou expiré. Redemande un code." };
 
+  if (isCoachEmail(data.user.email)) redirect("/coach");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
   redirect(profile?.role === "coach" ? "/coach" : "/dashboard");
 }
