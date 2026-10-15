@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireCoach } from "@/lib/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendLoginCode } from "@/lib/supabase/mailer";
+import { sendLoginCode, resendLoginCode, type ResendResult } from "@/lib/supabase/mailer";
 import { localToUTC } from "@/lib/format";
 import { STAGES } from "@/lib/coach";
 import type { FormState } from "@/app/login/actions";
@@ -34,9 +34,9 @@ export async function addStudent(_prev: FormState, formData: FormData): Promise<
   return { ok: `${firstName} est ajouté. Il vient de recevoir son code d'accès par e-mail.` };
 }
 
-export async function resendCode(email: string) {
+export async function resendCode(email: string): Promise<ResendResult> {
   await requireCoach();
-  await sendLoginCode(email);
+  return resendLoginCode(email);
 }
 
 const TRACK_FIELDS = ["coaching_price", "coaching_paid", "stage", "notes"] as const;

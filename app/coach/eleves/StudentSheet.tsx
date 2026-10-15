@@ -105,7 +105,7 @@ export function StudentSheet({ rows, stages }: { rows: StudentRow[]; stages: rea
         <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--c-muted)" }}>{list.length} élève{list.length > 1 ? "s" : ""} · clique un titre pour trier · les cellules claires se modifient</span>
         <button type="button" className="c-btn" onClick={exportCsv}>Exporter (Excel / CSV)</button>
       </div>
-      {sent && <p className="c-notice ok" role="status">Code renvoyé à {sent}.</p>}
+      {sent && <p className={`c-notice ${sent.startsWith("⚠") ? "err" : "ok"}`} role="status">{sent}</p>}
 
       <div className="sheet-wrap">
         <table className="sheet">
@@ -141,7 +141,11 @@ export function StudentSheet({ rows, stages }: { rows: StudentRow[]; stages: rea
                   <td><div className="cell">{r.visible ? <span className="c-pill ok">Visible</span> : <span className="c-pill mute">Anonyme</span>}</div></td>
                   <td><div className="cell c-sub">{r.blocker || "—"}</div></td>
                   <EditCell userId={r.id} field="notes" value={r.notes} w="w-notes" />
-                  <td><div className="cell">{r.email && <button type="button" className="c-btn" onClick={async () => { await resendCode(r.email!); setSent(r.email); }}>Renvoyer le code</button>}</div></td>
+                  <td><div className="cell">{r.email && <button type="button" className="c-btn" onClick={async () => {
+                    setSent(`Envoi à ${r.email}…`);
+                    const res = await resendCode(r.email!);
+                    setSent(res.error ? `⚠ ${r.email} : ${res.error}` : `Code renvoyé à ${r.email}. Dis-lui de regarder aussi dans ses spams.`);
+                  }}>Renvoyer le code</button>}</div></td>
                 </tr>
               );
             })}

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { sendLoginCode } from "@/lib/supabase/mailer";
+import { sendLoginCode, resendLoginCode, type ResendResult } from "@/lib/supabase/mailer";
 import { isCoachEmail } from "@/lib/coach-email";
 
 export type FormState = { error?: string; ok?: string; step?: "code"; email?: string } | undefined;
@@ -14,10 +14,18 @@ export async function requestCode(_prev: FormState, formData: FormData): Promise
   const email = String(formData.get("email") || "").trim().toLowerCase();
   if (!EMAIL_RE.test(email)) return { error: "E-mail invalide." };
   const { error } = await sendLoginCode(email);
-  if (error && /rate|seconds|too many/i.test(error.message)) {
-    return { error: "Trop de demandes. Attends une minute puis réessaie.", email };
+  if (error && /rate|seconds|too many|security purposes/i.test(error.message)) {
+    // Un code a été envoyé il y a moins d'une minute : on garde celui-là
+    return { step: "code", email, ok: "Un code t'a été envoyé il y a moins d'une minute : utilise celui-là (regarde aussi dans tes spams)." };
   }
   return { step: "code", email, ok: "Si tu fais partie de la Batcav, un code vient de t'être envoyé par e-mail." };
+}
+
+// Bouton « Renvoyer le code » sur l'écran de saisie
+export async function resendCode(email: string): Promise<ResendResult> {
+  const clean = String(email || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(clean)) return { error: "E-mail invalide." };
+  return resendLoginCode(clean);
 }
 
 // Étape 2 : on vérifie le code
@@ -28,7 +36,7 @@ export async function verifyCode(_prev: FormState, formData: FormData): Promise<
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
-  if (error || !data.user) return { step: "code", email, error: "Code incorrect ou expiré. Redemande un code." };
+  if (error || !data.user) return { step: "code", email, error: "Code incorrect ou expiré. Utilise le dernier code reçu, ou redemande-en un." };
 
   if (isCoachEmail(data.user.email)) redirect("/coach");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
