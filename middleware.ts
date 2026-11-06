@@ -23,9 +23,24 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Si Supabase ne répond pas (projet en pause, panne), on n'attend pas indéfiniment :
+  // on affiche une page claire au lieu de l'erreur 504 de Vercel.
+  const result = await Promise.race([
+    supabase.auth.getUser().then((r) => ({ ok: true as const, user: r.data.user })),
+    new Promise<{ ok: false }>((resolve) => setTimeout(() => resolve({ ok: false }), 6000)),
+  ]).catch(() => ({ ok: false as const }));
+
+  if (!result.ok) {
+    return new NextResponse(
+      `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Batcav</title></head>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1220;color:#e4ebf5;font-family:system-ui,sans-serif;text-align:center;padding:24px">
+<div><h1 style="font-weight:600;letter-spacing:-.03em">La Batcav fait une petite pause.</h1>
+<p style="color:#8c9bb4">Le serveur met un peu de temps à répondre. Réessaie dans une minute.</p>
+<p><a href="" style="color:#0b1220;background:#f4f7fb;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:600">Réessayer</a></p></div></body></html>`,
+      { status: 503, headers: { "content-type": "text/html; charset=utf-8", "retry-after": "30" } }
+    );
+  }
+  const user = result.user;
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
