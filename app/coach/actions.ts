@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireCoach } from "@/lib/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendLoginCode, resendLoginCode, type ResendResult } from "@/lib/supabase/mailer";
+import { sendLoginCode, resendLoginCode, describeSend, type ResendResult } from "@/lib/supabase/mailer";
 import { localToUTC } from "@/lib/format";
 import { STAGES } from "@/lib/coach";
 import type { FormState } from "@/app/login/actions";
@@ -28,9 +28,9 @@ export async function addStudent(_prev: FormState, formData: FormData): Promise<
   await admin.from("profiles").update({ first_name: firstName }).eq("id", data.user.id);
   await supabase.from("student_tracking").upsert({ user_id: data.user.id, coaching_price: price });
 
-  const { error: mailErr } = await sendLoginCode(email);
+  const sent = await sendLoginCode(email);
   refreshAll();
-  if (mailErr) return { ok: `${firstName} est ajouté, mais l'e-mail n'est pas parti (${mailErr.message}). Il pourra demander son code sur la page de connexion.` };
+  if (sent.kind !== "sent") return { ok: `${firstName} est ajouté, mais l'e-mail n'est pas parti : ${describeSend(sent).error || "erreur inconnue"} Il pourra demander son code sur la page de connexion.` };
   return { ok: `${firstName} est ajouté. Il vient de recevoir son code d'accès par e-mail.` };
 }
 

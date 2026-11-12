@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { sendLoginCode, resendLoginCode, type ResendResult } from "@/lib/supabase/mailer";
+import { sendLoginCode, resendLoginCode, describeSend, type ResendResult } from "@/lib/supabase/mailer";
 import { isCoachEmail } from "@/lib/coach-email";
 
 export type FormState = { error?: string; ok?: string; step?: "code"; email?: string } | undefined;
@@ -13,12 +13,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function requestCode(_prev: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   if (!EMAIL_RE.test(email)) return { error: "E-mail invalide." };
-  const { error } = await sendLoginCode(email);
-  if (error && /rate|seconds|too many|security purposes/i.test(error.message)) {
-    // Un code a été envoyé il y a moins d'une minute : on garde celui-là
-    return { step: "code", email, ok: "Un code t'a été envoyé il y a moins d'une minute : utilise celui-là (regarde aussi dans tes spams)." };
-  }
-  return { step: "code", email, ok: "Si tu fais partie de la Batcav, un code vient de t'être envoyé par e-mail." };
+  const res = await sendLoginCode(email);
+  const msg = describeSend(res);
+  // Un code est déjà parti il y a moins d'une minute : on passe à la saisie avec celui-là
+  if (res.kind === "cooldown") return { step: "code", email, ok: "Un code t'a été envoyé il y a moins d'une minute : utilise celui-là (regarde aussi dans tes spams)." };
+  if (msg.error) return { error: msg.error, email };
+  return { step: "code", email, ok: msg.ok };
 }
 
 // Bouton « Renvoyer le code » sur l'écran de saisie
